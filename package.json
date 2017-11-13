@@ -1,0 +1,21 @@
+{
+  "name": "command-daemon",
+  "description": "Daemon with command line arguments for execution.",
+  "url": "https://github.com/AdaptivElite/Command-Daemon",
+  "keywords": [
+    "Daemon",
+    "Command Line",
+    "cmd",
+    "startup",
+    "process",
+    "bootstrap"
+  ],
+  "author": "Steven Adams <steven@adaptivelite.com>",
+  "repository": "git://github.com/AdaptivElite/Command-Daemon.git",
+  "main": "./index.js",
+  "license": "GPL-3.0",
+  "version": "0.0.1",
+  "dependencies": {
+    "command-line-args": "^4.0.7"
+  }
+}
