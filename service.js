@@ -27,10 +27,11 @@ exports.Service = class Service{
     this.execScript = path.relative( process.cwd(), this.Caller(2) );
     this.options = options;
     this._CreateCliOptions( [
-      { name : "command", alias : 'x', type : String, defaultValue : "start", defaultOption : true },
-      { name : "killCode", alias : 'k', type : String, defaultValue : "SIGINT" },
-      { name : "config", alias : "c", type : String, defaultValue : "" },
-      { name : "isBootStrapped", type : Boolean, defaultValue : false }
+      { name : "command", alias : 'x', type : String, defaultValue : "start",
+        defaultOption : true, description : "Command to run the service with. Default 'start'",
+        typeLabel : "[underline]{debug}|[underline]{stop}|[underline]{start}|[underline]{restart}|[underline]{status}|[underline]{manual}." },
+      { name : "killCode", alias : 'k', type : String, defaultValue : "SIGINT", description : "Kill code to use when using the stop or restart command. Default 'SIGINT'", },
+      { name : "config", alias : "c", type : String, defaultValue : "", description : "Config file to load into bootstrap.", typeLabel : "[underline]{file}" }
     ] );
 
     this._YieldProcesses();
@@ -53,7 +54,7 @@ exports.Service = class Service{
   }
 
   async _YieldProcesses(){
-    if( !this.options.services ){
+    if( !this.options.services || this.cliOptions.command === "manual" ){
       this._YieldProcess();
     }
     else{
@@ -100,6 +101,12 @@ exports.Service = class Service{
             this._KillProcess( service, "SIGTERM" );
           }
           await this._RunCommand( service, this._GenerateArguments( service ), false, this.options.services.filter( x => x.name === service )[0].captureInput || false );
+          break;
+        case "manual":
+          const getUsage = require('command-line-usage');
+          let sections = this.options.usage || [];
+          sections.push( { header : "Options", optionList : this._appCliOptions } );
+          console.log( getUsage( sections.filter( x => x.name !== "isBootStrapped" ) ) );
           break;
         case "status":
           console.log( this._Status( service ) );
@@ -255,7 +262,8 @@ exports.Service = class Service{
 
   _CreateCliOptions( defaultCliOptions ){
     if( this.options.services && this.options.services instanceof Array ){
-      defaultCliOptions.push( { name : "service", alias : 's', type : String } );
+      let valueTypes = this.options.services.map( x => "[underline]{" + x.name + "}" );
+      defaultCliOptions.push( { name : "service", alias : 's', type : String, description : "Service to execute command on.", typeLabel : valueTypes.join("|") } );
     }
     let appCliOptions = this.options.cli || [];
     let appCliNames = appCliOptions.map( y => y.name );

@@ -16,6 +16,7 @@ Install
 
 Config Options
 ==============
+* usage : Command line usage sections, see 'npm command-line-usege'
 * exec : String, default 'node', the process that will be executed.
 * processName : String default 'bootloader-%service%', like other names %option% is a replacement for cli option by name.
 * forwardArgs : String[], additional arguments for exec process.
