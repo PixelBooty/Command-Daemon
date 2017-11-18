@@ -45,8 +45,12 @@ Service Options
 Basic Use
 =========
 Create a file like server.js
-`require( "command-daemon" ).startup( { execute : ( bootstrap ) => { ...Run App... } } );`
-`node server.js debug|stop|start|restart|status|manual`
+```
+require( "command-daemon" ).startup( { execute : ( bootstrap ) => { ...Run App... } } );
+```
+```
+node server.js debug|stop|start|restart|status|manual
+```
 
 Multiple Nodes
 ==============
