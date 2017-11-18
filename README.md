@@ -44,10 +44,48 @@ Service Options
 
 Basic Use
 =========
+Create a file like server.js
 `require( "command-daemon" ).startup( { execute : ( bootstrap ) => { ...Run App... } } );`
+`node server.js debug|stop|start|restart|status|manual`
+
+Multiple Nodes
+==============
+Use the settings for services, each service being configured. As an example running a npm command behind your application.
+`
+const spawn = require('child_process').spawn;
+
+require( "command-daemon" ).startup( {
+  services : [
+    {
+      name : "webserver",
+      pushDebug : true,
+      execute : ( bootstrap ) => {
+        ... Run Web Server ...
+      }
+    }, {
+      name : "npmTask",
+      debugOnly : true,
+      execute : () => {
+        let childSpawn = spawn( "npm", [ "run", "... npm task ..." ] );
+        childSpawn.stdout.on( 'data', ( chunk ) => {
+          console.log( chunk.toString().trim() );
+        } );
+        childSpawn.stderr.on( 'data', ( chunk ) => {
+          console.error( chunk.toString().trim() );
+        });
+        childSpawn.on( "exit", ( ) => {
+          console.log( "npmTask CLOSED!" );
+        } );
+
+        bootstrap.OnClose( ( signal ) => {
+          childSpawn.kill();
+        });
+      }
+    }
+  ]
+} );
+`
 
 Roadmap
 =======
-1. Finish start option.
-2. Flesh out readme.
-3. See if debug system of node can't be sent to parent spawn to allow for single step debugging.
+1. See if debug system of node can't be sent to parent spawn to allow for single step debugging.

@@ -8,13 +8,15 @@
     "cmd",
     "startup",
     "process",
-    "bootstrap"
+    "bootstrap",
+    "cli",
+    "spawn"
   ],
   "author": "Steven Adams <steven@adaptivelite.com>",
   "repository": "git://github.com/AdaptivElite/Command-Daemon.git",
   "main": "./index.js",
   "license": "GPL-3.0",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "dependencies": {
     "command-line-args": "^4.0.7"
   }
