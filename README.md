@@ -1,11 +1,6 @@
 # Command-Daemon
 Daemon with command line arguments for execution.
 
-Work in progress
-================
-This package is enabled for debug commands, start command is not fully implemented.
-This readme is not fleshed out.
-
 Features
 ========
 * Command-line process daemon for when running one instance of node won't cut it, and starting each is tedious.
