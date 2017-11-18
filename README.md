@@ -51,7 +51,7 @@ Create a file like server.js
 Multiple Nodes
 ==============
 Use the settings for services, each service being configured. As an example running a npm command behind your application.
-`
+```
 const spawn = require('child_process').spawn;
 
 require( "command-daemon" ).startup( {
@@ -84,7 +84,7 @@ require( "command-daemon" ).startup( {
     }
   ]
 } );
-`
+```
 
 Roadmap
 =======
