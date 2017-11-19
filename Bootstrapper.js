@@ -79,6 +79,6 @@ exports.Bootstrapper = class Bootstrapper{
       this.config.fileName = this.options.config;
     }
     this.config = this.config || {};
-    this.config.debug = ( this.service.cliOptions.command === "debug" );
+    this.config.debug = ( this.service.cliOptions.command === "debug" || this.service.cliOptions.command === "restart-debug" );
   }
 }
