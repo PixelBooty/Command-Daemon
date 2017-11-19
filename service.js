@@ -29,7 +29,7 @@ exports.Service = class Service{
     this._CreateCliOptions( [
       { name : "command", alias : 'x', type : String, defaultValue : "start",
         defaultOption : true, description : "Command to run the service with. Default 'start'",
-        typeLabel : "[underline]{debug}|[underline]{stop}|[underline]{start}|[underline]{restart}|[underline]{status}|[underline]{manual}." },
+        typeLabel : "[underline]{debug}|[underline]{restart-debug}|[underline]{stop}|[underline]{start}|[underline]{restart}|[underline]{status}|[underline]{manual}." },
       { name : "killCode", alias : 'k', type : String, defaultValue : "SIGINT", description : "Kill code to use when using the stop or restart command. Default 'SIGINT'", },
       { name : "config", alias : "c", type : String, defaultValue : "", description : "Config file to load into bootstrap.", typeLabel : "[underline]{file}" }
     ] );
@@ -128,8 +128,18 @@ exports.Service = class Service{
           }
           break;
         case "start":
-          await this._RunCommand( service, this._GenerateArguments( service ), false, this.options.services.filter( x => x.name === service )[0].captureInput || false );
+          if( this._IsStopped( service ) ){
+            await this._RunCommand( service, this._GenerateArguments( service ), false, this.options.services.filter( x => x.name === service )[0].captureInput || false );
+          }
+          else{
+            console.log( this._Title( service ) + " is already running." );
+          }
           break;
+        case "restart-debug":
+          if( !this._IsStopped( service ) ){
+            this._KillProcess( service );
+            console.log( this._Title( service ) + " stopped to restart for debug." );
+          }
         case "debug":
           if( this._IsStopped( service ) ){
             if( !this.options.services ){
@@ -243,15 +253,16 @@ exports.Service = class Service{
       return "";
     }
     else{
-      let pidNumber = fs.readFileSync( this._PidLocation( service ) ).toString().trim();
-      if( pidNumber.match( /^\d+$/) ){
-        try{
+      try{
+        let pidNumber = fs.readFileSync( this._PidLocation( service ) ).toString().trim();
+        if( pidNumber.match( /^\d+$/) ){
           return execSync( "ps -p " + pidNumber + " -o command=" ).toString().trim();
         }
-        catch( ex ){
-          return "";
-        }
       }
+      catch( ex ){
+        return "";
+      }
+
       return "";
     }
   }
