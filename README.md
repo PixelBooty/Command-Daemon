@@ -28,7 +28,7 @@ Config Options
 * stderr : String default 'logs/stderr-%service%.log', location of stderr for basic logging.
 * services : Array of sevices optional, see service options.
 * cli : Array of cli options see 'npm command-line-args' for details on cli objects.
-* execute : Function( Bootstrapper ), method if no services are used to execute service.
+* execute : Function( BootStrapper ), method if no services are used to execute service.
 
 Service Options
 ===============
@@ -65,7 +65,7 @@ require( "command-daemon" ).startup( {
     }, {
       name : "npmTask",
       debugOnly : true,
-      execute : () => {
+      execute : ( bootstrap ) => {
         let childSpawn = spawn( "npm", [ "run", "... npm task ..." ] );
         childSpawn.stdout.on( 'data', ( chunk ) => {
           console.log( chunk.toString().trim() );
@@ -85,6 +85,10 @@ require( "command-daemon" ).startup( {
   ]
 } );
 ```
+
+BootStrapper
+============
+The Boot strapper is in charge of tracking pids. Creating exception helpers. It also loads and tracks config files written in JSON. By default if no config file is loaded it will set the debug flag depending on if the execution command is a debug type. It has one exposed event for sub process clean up which is 'OnClose'.
 
 Roadmap
 =======
