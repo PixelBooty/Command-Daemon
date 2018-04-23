@@ -279,7 +279,7 @@ exports.Service = class Service{
     let appCliOptions = this.options.cli || [];
     let appCliNames = appCliOptions.map( y => y.name );
     defaultCliOptions.filter( x => appCliNames.indexOf( x.name ) === -1 ).map( x => appCliOptions.push( x ) );
-    this._appCliOptions = defaultCliOptions;
+    this._appCliOptions = appCliOptions;
     this.cliOptions = commandLineArgs( this._appCliOptions );
   }
 
