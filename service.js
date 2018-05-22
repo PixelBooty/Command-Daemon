@@ -31,8 +31,9 @@ exports.Service = class Service{
         defaultOption : true, description : "Command to run the service with. Default 'start'",
         typeLabel : "[underline]{debug}|[underline]{restart-debug}|[underline]{stop}|[underline]{start}|[underline]{restart}|[underline]{status}|[underline]{manual}." },
       { name : "killCode", alias : 'k', type : String, defaultValue : "SIGINT", description : "Kill code to use when using the stop or restart command. Default 'SIGINT'", },
-      { name : "config", alias : "c", type : String, defaultValue : "", description : "Config file to load into bootstrap.", typeLabel : "[underline]{file}" }
-    ] );
+      { name : "config", alias : "c", type : String, defaultValue : "", description : "Config file to load into bootstrap.", typeLabel : "[underline]{file}" },
+	  { name : "isBootStrapped", type : Boolean, defaultValue : false }
+	] );
 
     this._YieldProcesses();
   }

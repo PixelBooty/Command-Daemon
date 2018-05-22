@@ -16,7 +16,7 @@
   "repository": "git://github.com/AdaptivElite/Command-Daemon.git",
   "main": "./index.js",
   "license": "GPL-3.0",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "dependencies": {
     "command-line-args": "^4.0.7",
     "command-line-usage": "^4.0.1"
