@@ -231,6 +231,8 @@ exports.Service = class Service{
         resolve();
       }
       else{
+        this._ValidatePath( path.resolve( path.dirname( this.StdOut( service ) ) ), "stdout log file" );
+        this._ValidatePath( path.resolve( path.dirname( this.StdErr( service ) ) ), "stderr log file" );
         let out = fs.openSync( this.StdOut( service ), 'a');
         let readStream = fs.createReadStream( this.StdOut( service ) );
         let err = fs.openSync( this.StdErr( service ), 'a');
@@ -305,8 +307,6 @@ exports.Service = class Service{
     this._ValidatePath( path.resolve( path.dirname( this._PidLocation( service ) ) ), "pid file" );
     if( this.options.useLogging === undefined || this.options.useLogging === true ){
       let appendLogs = this.options.appendLogs || false;
-      this._ValidatePath( path.resolve( path.dirname( this.StdOut( service ) ) ), "stdout log file" );
-      this._ValidatePath( path.resolve( path.dirname( this.StdErr( service ) ) ), "stderr log file" );
       let startupMessage = this.options.startupMessage || "======= Start up " + ( new Date() ) + " =======\r\n";
       if( appendLogs ){
         fs.appendFileSync( this.StdOut( service ), "\n" );
