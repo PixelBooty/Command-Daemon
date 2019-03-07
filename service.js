@@ -2,8 +2,8 @@ const fs = require( "fs" );
 const path = require( "path" );
 const commandLineArgs = require('command-line-args');
 const spawn = require('child_process').spawn;
-const exec = require('child_process').exec;
 const execSync = require('child_process').execSync;
+const chalk = require('chalk');
 const Bootstrapper = require( "./Bootstrapper.js" ).Bootstrapper;
 
 /* Options
@@ -18,22 +18,59 @@ const Bootstrapper = require( "./Bootstrapper.js" ).Bootstrapper;
   stderr : String,
   services : Service Array,
   cli : Command Array,
+  config: String,
+  target : String,
+  environments: String Array,
   execute : Function #for single services this will do inline command execution keeping the debugger running intack.
 }
 */
 
 exports.Service = class Service{
   constructor( options = {} ){
+    let defaultEnv = process.env.NODE_ENV || options.target || ( options.environments ? options.environments[0] : "development" );
+    if( options.target && options.environments.indexOf( options.target ) === -1 ){
+      options.environments.push( options.target );
+    }
     this.execScript = path.relative( process.cwd(), this.Caller(2) );
     this.options = options;
     this._CreateCliOptions( [
-      { name : "command", alias : 'x', type : String, defaultValue : "start",
-        defaultOption : true, description : "Command to run the service with. Default 'start'",
-        typeLabel : "[underline]{debug}|[underline]{restart-debug}|[underline]{stop}|[underline]{start}|[underline]{restart}|[underline]{status}|[underline]{manual}." },
-      { name : "killCode", alias : 'k', type : String, defaultValue : "SIGINT", description : "Kill code to use when using the stop or restart command. Default 'SIGINT'", },
-      { name : "config", alias : "c", type : String, defaultValue : "", description : "Config file to load into bootstrap.", typeLabel : "[underline]{file}" },
-	  { name : "isBootStrapped", type : Boolean, defaultValue : false }
-	] );
+      {
+        name : "command",
+        alias : 'x',
+        type : String,
+        defaultValue : "start",
+        defaultOption : true,
+        description : "Command to run the service with. Default 'start'",
+        typeLabel : "[underline]{start}|[underline]{debug}|[underline]{restart-debug}|[underline]{stop}|[underline]{restart}|[underline]{status}|[underline]{manual}."
+      }, {
+        name : "killCode",
+        alias : 'k',
+        type : String,
+        defaultValue : options.killCode || "SIGINT",
+        description : `Kill code to use when using the stop or restart command. Default '${options.killCode || "SIGINT"}'`,
+      }, {
+        name : "config",
+        alias : "c",
+        type : String,
+        defaultValue : options.config || "",
+        description : `Config file to load into bootstrap.${this.options.config ? " Default " + this.options.config + "." : ""}`,
+        typeLabel : "[underline]{filename}"
+      }, {
+        name : "target",
+        alias : "t",
+        description : `Target environment. Default '${options.target || defaultEnv}'`,
+        type : String,
+        defaultValue : options.target || defaultEnv,
+        typeLabel : ( options.environments || ["production", "test", "development"] )
+          .sort( (x, y) => x === defaultEnv ? -1 : y === defaultEnv ? 1 : 0 )
+          .map( env => `[underline]{${env}}` )
+          .join( '|' )
+      }, {
+        name : "isBootStrapped",
+        type : Boolean,
+        defaultValue : false
+      }
+	  ] );
 
     this._YieldProcesses();
   }
@@ -106,7 +143,7 @@ exports.Service = class Service{
         case "manual":
           const getUsage = require('command-line-usage');
           let sections = this.options.usage || [];
-          sections.push( { header : "Options", optionList : this._appCliOptions } );
+          sections.push( { header : "Options", optionList : this._appCliOptions.filter( option => option.name !== "isBootStrapped" ) } );
           console.log( getUsage( sections.filter( x => x.name !== "isBootStrapped" ) ) );
           break;
         case "status":
@@ -203,9 +240,13 @@ exports.Service = class Service{
 
   _RunCommand( service, args, watch = false, passinput = false ){
     return new Promise( ( resolve, reject ) => {
+      const localEnv = { ...process.env };
+      localEnv.NODE_ENV = this.cliOptions.target;
       if( watch ){
         let resolved = false;
-        let childSpawn = spawn( this.options.exec || "node", args );
+        let childSpawn = spawn( this.options.exec || "node", args, {
+          env: localEnv
+        } );
         if( passinput ){
           process.stdin.on('readable', () => {
             var chunk = process.stdin.read();
@@ -223,7 +264,7 @@ exports.Service = class Service{
           console.log( chunk.toString().trim() );
         } );
         childSpawn.stderr.on( 'data', ( chunk ) => {
-          console.error( chunk.toString().trim() );
+          console.error( chalk.red( chunk.toString().trim() ) );
         });
         childSpawn.on( "exit", ( ) => {
           //finishedCallback();
@@ -234,11 +275,14 @@ exports.Service = class Service{
         this._ValidatePath( path.resolve( path.dirname( this.StdOut( service ) ) ), "stdout log file" );
         this._ValidatePath( path.resolve( path.dirname( this.StdErr( service ) ) ), "stderr log file" );
         let out = fs.openSync( this.StdOut( service ), 'a');
+        let outRead = fs.createReadStream( this.StdOut( service ) );
         let readStream = fs.createReadStream( this.StdOut( service ) );
         let err = fs.openSync( this.StdErr( service ), 'a');
+        let errRead = fs.createReadStream( this.StdErr( service ) );
         let childSpawn = spawn( this.options.exec || "node", args, {
           detached: true,
-          stdio: [ 'ignore', out, err ]
+          stdio: [ 'ignore', out, err ],
+          env: localEnv
         } );
 
         readStream.on( 'data', ( chunk ) => {

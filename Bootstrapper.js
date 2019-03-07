@@ -7,7 +7,7 @@ exports.Bootstrapper = class Bootstrapper{
   /**
    * Constructor for Bootstraper.
    */
-  constructor( serviceName, service, cliOptions ){
+  constructor( serviceName, service ){
     this._serviceName = serviceName,
     this.service = service;
     this.options = this.service.cliOptions;
@@ -75,12 +75,23 @@ exports.Bootstrapper = class Bootstrapper{
    */
   _LoadConfigFile(){
     if( this.options.config ){
-      this.config = JSON.parse( fs.readFileSync( this.options.config ).toString() );
-      this.config.fileName = this.options.config;
+      let configFile = this.service._ReplaceNaming( this._serviceName, this.options.config );
+      if( fs.existsSync( configFile ) ){
+        try{
+          this.config = require( configFile );
+          this.config.fileName = configFile;
+        }
+        catch( ex ){
+          console.error( `Unable to require config file ${configFile}.` );
+        }
+      }
+      else{
+        console.error( `Missing config file at ${configFile} using blank config.` )
+      }
     }
     this.config = this.config || {};
-	if( this.config.debug === undefined ){
+    if( this.config.debug === undefined ){
       this.config.debug = ( this.service.cliOptions.command === "debug" || this.service.cliOptions.command === "restart-debug" );
-	}
+    }
   }
 }
