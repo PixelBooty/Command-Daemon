@@ -242,6 +242,9 @@ exports.Service = class Service{
 
   _runCommand( service, args, watch = false, passinput = false ){
     return new Promise( ( resolve, reject ) => {
+      this._validatePath( path.resolve( path.dirname( this.stdOut( service ) ) ), "stdout log file" );
+      this._validatePath( path.resolve( path.dirname( this.stdErr( service ) ) ), "stderr log file" );
+      
       const localEnv = { ...process.env };
       localEnv.NODE_ENV = this.cliOptions.target;
       if( watch ){
@@ -274,8 +277,6 @@ exports.Service = class Service{
         resolve();
       }
       else{
-        this._validatePath( path.resolve( path.dirname( this.stdOut( service ) ) ), "stdout log file" );
-        this._validatePath( path.resolve( path.dirname( this.stdErr( service ) ) ), "stderr log file" );
         let out = fs.openSync( this.stdOut( service ), 'a');
         let outRead = fs.createReadStream( this.stdOut( service ) );
         let readStream = fs.createReadStream( this.stdOut( service ) );

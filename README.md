@@ -14,7 +14,7 @@ Install
 =======
 `npm install command-daemon`
 
-Build in CLI Options
+Built in CLI Options
 ====================
 * --command or -x: Command to run the server, this is also the default cli argument and the default value is start. Options start|debug|restart|restart-debug|status|manual
 * --killCode or -k: Kill code to be used to kill the running process for stop command, defaults value is SIGINT.
@@ -79,7 +79,7 @@ require( "command-daemon" ).startup( {
       debugOnly : true,
       execute : ( bootstrap ) => {
         //Npm or another cli program other than node//
-        bootstrap.task( "npm run task", { cwd: "/x/y/z" }, () => console.log( "Task ended" ); );
+        bootstrap.task( "npm run task", { cwd: "/x/y/z" }, () => console.log( "Task ended" ) );
       }
     }
   ]
