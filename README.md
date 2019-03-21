@@ -79,7 +79,7 @@ require( "command-daemon" ).startup( {
       debugOnly : true,
       execute : ( bootstrap ) => {
         //Npm or another cli program other than node//
-        bootstrap.Task( "npm", [ "run", "... npm task ..." ], { cwd: "/x/y/z" }, () => console.log( "Task ended" ); );
+        bootstrap.task( "npm run task", { cwd: "/x/y/z" }, () => console.log( "Task ended" ); );
       }
     }
   ]

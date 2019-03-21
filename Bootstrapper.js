@@ -1,4 +1,5 @@
-let fs = require( "fs" );
+const fs = require( "fs" );
+const spawn = require('child_process').spawn;
 
 /**
  * Class that helps bootstrap the application, by setting up events and triggers.
@@ -33,11 +34,14 @@ exports.Bootstrapper = class Bootstrapper{
     }
   }
 
-  task( program, args = [], options = {}, onclose = null ){
+  task( command, options = {}, onclose = null ){
     if( !options.env ){
       options.env = process.env;
     }
-    let childSpawn = spawn( program, args, options );
+    let args = command.split( " " );
+    command = args[0];
+    args.splice( 0, 1 );
+    let childSpawn = spawn( command, args, options );
     childSpawn.stdout.on( 'data', ( chunk ) => {
       console.log( chunk.toString().trim() );
     } );
@@ -45,7 +49,7 @@ exports.Bootstrapper = class Bootstrapper{
       console.error( chunk.toString().trim() );
     });
     childSpawn.on( "exit", ( ) => {
-      console.log( `Task '${program} ${args.join(" ")}' CLOSED!` );
+      console.log( `Task '${command} ${args.join(" ")}' CLOSED!` );
       if( onclose !== null ){
         onclose();
       }
