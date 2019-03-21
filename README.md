@@ -14,6 +14,15 @@ Install
 =======
 `npm install command-daemon`
 
+Build in CLI Options
+====================
+* --command or -x: Command to run the server, this is also the default cli argument and the default value is start. Options start|debug|restart|restart-debug|status|manual
+* --killCode or -k: Kill code to be used to kill the running process for stop command, defaults value is SIGINT.
+* --config or -c: The location of the config file the bootloader will use, it can use %service|group|target% syntax.
+* --target or -t: Target of the running system if you want to have your targets run differently, this defaults to NODE_ENV or the target in the config, or the first envrionment.
+* --group or -g: Target group of services to run the command on. Services must have a group option set to run in a group.
+* --service or -s: Target service name to run the command on.
+
 Config Options
 ==============
 * usage : Command line usage sections, see 'npm command-line-usege'
@@ -29,14 +38,17 @@ Config Options
 * services : Array of sevices optional, see service options.
 * cli : Array of cli options see 'npm command-line-args' for details on cli objects.
 * execute : Function( BootStrapper ), method if no services are used to execute service.
+* target: Default target to be used.
+* environments: Array of types of environments to allow to be targeted. Defaults to and array of "production, test, and development".
 
 Service Options
 ===============
 * name : String, name of the service, when services are not used the name of the default service is daemon.
 * debugOnly : Will only start/stop the node when in debug mode.
-* pushDebug : Boolean default true, Passes process instance to this service rather then creating a spawn.
-* captureInput : Boolean default false, Passes process instance input to service, recommended this is only set for one service, and pushDebug is off.
+* pushDebug : Passes process instance to this service rather then creating a spawn.
+* captureInput : Passes process instance input to service, recommended this is only set for one service, and pushDebug is off.
 * execute : Method that executes to start the node service.
+* group : Name of the group that will be targeted with the command.
 
 Basic Use
 =========
@@ -45,14 +57,13 @@ Create a file like server.js
 require( "command-daemon" ).startup( { execute : ( bootstrap ) => { ...Run App... } } );
 ```
 ```
-node server.js debug|stop|start|restart|status|manual
+node server.js debug|stop|start|restart|restart-debug|status|manual
 ```
 
 Multiple Nodes
 ==============
 Use the settings for services, each service being configured. As an example running a npm command behind your application.
 ```
-const spawn = require('child_process').spawn;
 
 require( "command-daemon" ).startup( {
   services : [
@@ -60,26 +71,15 @@ require( "command-daemon" ).startup( {
       name : "webserver",
       pushDebug : true,
       execute : ( bootstrap ) => {
-        ... Run Web Server ...
+        //... Run Web Server ...
+        require( "./myWebServer.js" )( bootstrap.config );
       }
     }, {
       name : "npmTask",
       debugOnly : true,
       execute : ( bootstrap ) => {
-        let childSpawn = spawn( "npm", [ "run", "... npm task ..." ] );
-        childSpawn.stdout.on( 'data', ( chunk ) => {
-          console.log( chunk.toString().trim() );
-        } );
-        childSpawn.stderr.on( 'data', ( chunk ) => {
-          console.error( chunk.toString().trim() );
-        });
-        childSpawn.on( "exit", ( ) => {
-          console.log( "npmTask CLOSED!" );
-        } );
-
-        bootstrap.OnClose( ( signal ) => {
-          childSpawn.kill();
-        });
+        //Npm or another cli program other than node//
+        bootstrap.Task( "npm", [ "run", "... npm task ..." ], { cwd: "/x/y/z" }, () => console.log( "Task ended" ); );
       }
     }
   ]
@@ -88,7 +88,7 @@ require( "command-daemon" ).startup( {
 
 BootStrapper
 ============
-The Boot strapper is in charge of tracking pids. Creating exception helpers. It also loads and tracks config files written in JSON. By default if no config file is loaded it will set the debug flag depending on if the execution command is a debug type. It has one exposed event for sub process clean up which is 'OnClose'.
+The Boot strapper is in charge of tracking pids. Creating exception helpers. It also loads and tracks config files written in JSON. By default if no config file is loaded it will set the debug flag depending on if the execution command is a debug type. It has one exposed event for sub process clean up which is 'onclose'.
 
 Roadmap
 =======

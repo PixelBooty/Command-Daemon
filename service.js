@@ -31,9 +31,9 @@ exports.Service = class Service{
     if( options.target && options.environments.indexOf( options.target ) === -1 ){
       options.environments.push( options.target );
     }
-    this.execScript = path.relative( process.cwd(), this.Caller(2) );
+    this.execScript = path.relative( process.cwd(), this.caller(2) );
     this.options = options;
-    this._CreateCliOptions( [
+    this._createCliOptions( [
       {
         name : "command",
         alias : 'x',
@@ -72,18 +72,18 @@ exports.Service = class Service{
       }
 	  ] );
 
-    this._YieldProcesses();
+    this._yieldProcesses();
   }
 
-  _KillProcess( service, overrideSignal = null ){
+  _killProcess( service, overrideSignal = null ){
     overrideSignal = overrideSignal || this.cliOptions.killCode;
-    let pid = fs.readFileSync( this._PidLocation( service ) ).toString().trim();
-    if( pid.match( /^\d+$/ ) && this._PidDetail( service ) === this._Title( service ) ){
+    let pid = fs.readFileSync( this._pidLocation( service ) ).toString().trim();
+    if( pid.match( /^\d+$/ ) && this._pidDetail( service ) === this._title( service ) ){
       process.kill( pid, overrideSignal );
     }
     if( overrideSignal === "SIGTERM" || overrideSignal === "SIGKILL" ){
       try{
-        fs.unlinkSync( this._PidLocation( service ) );
+        fs.unlinkSync( this._pidLocation( service ) );
       }
       catch( ex ){
         //Throw away kill process file errors//
@@ -91,36 +91,38 @@ exports.Service = class Service{
     }
   }
 
-  async _YieldProcesses(){
-    if( !this.options.services || this.cliOptions.command === "manual" ){
-      this._YieldProcess();
+  async _yieldProcesses(){
+    if( ( !this.options.group && !this.options.services ) || this.cliOptions.command === "manual" ){
+      this._yieldProcess();
     }
     else{
       if( this.cliOptions.service ){
-        this.options.services.filter( x => x.name === this.cliOptions.service )[0].pushDebug = true;
-        this._YieldProcess( this.cliOptions.service );
+        //this.options.services.filter( x => x.name === this.cliOptions.service )[0].pushDebug = true;
+        this._yieldProcess( this.cliOptions.service );
       }
       else{
         for( let i = 0; i < this.options.services.length; i++ ){
-          await this._YieldProcess( this.options.services[i].name );
+          if( ( !this.cliOptions.group || this.options.services[i].group === this.cliOptions.group ) && ( this.cliOptions.command === "debug" || this.cliOptions.command === "restart-debug" || !this.options.services[i].debugOnly ) ){
+            await this._yieldProcess( this.options.services[i].name );
+          }
         }
       }
     }
   }
 
-  _Status( service ){
-    return this._Title( service ) + " is " + ( ( this._IsStopped( service ) ) ? "stopped" : "running" );
+  _status( service ){
+    return this._title( service ) + " is " + ( ( this._isStopped( service ) ) ? "stopped" : "running" );
   }
 
-  _Timeout( timer ){
+  _timeout( timer ){
     return new Promise( ( resolve, reject ) => {
       setTimeout( () => resolve(), timer );
     });
   }
 
-  async _YieldProcess( service ){
+  async _yieldProcess( service ){
     if( this.cliOptions.isBootStrapped ){
-      this._ConfigureProcess( service );
+      this._configureProcess( service );
       //console.log( "--YIELD PROCESS " + service + " FINISHED--" );
       this.options.services.filter( x => x.name === service )[0].execute( new Bootstrapper( service, this ) );
     }
@@ -129,16 +131,16 @@ exports.Service = class Service{
         case "restart":
           let maxKillTimer = 3000;
           let currentTimer = 0;
-          this._KillProcess( service );
-          while( currentTimer < maxKillTimer && !this._IsStopped( service ) ){
-            await this._Timeout( 10 );
+          this._killProcess( service );
+          while( currentTimer < maxKillTimer && !this._isStopped( service ) ){
+            await this._timeout( 10 );
             currentTimer += 10;
           }
-          if( !this._IsStopped( service ) ){
+          if( !this._isStopped( service ) ){
             console.log( "Couldn't stop process sending termination signal." );
-            this._KillProcess( service, "SIGTERM" );
+            this._killProcess( service, "SIGTERM" );
           }
-          await this._RunCommand( service, this._GenerateArguments( service ), false, this.options.services.filter( x => x.name === service )[0].captureInput || false );
+          await this._runCommand( service, this._generateArguments( service ), false, this.options.services.filter( x => x.name === service )[0].captureInput || false );
           break;
         case "manual":
           const getUsage = require('command-line-usage');
@@ -147,60 +149,60 @@ exports.Service = class Service{
           console.log( getUsage( sections.filter( x => x.name !== "isBootStrapped" ) ) );
           break;
         case "status":
-          console.log( this._Status( service ) );
+          console.log( this._status( service ) );
           break;
         case "stop":
-          if( !this._IsStopped( service ) ){
-            this._KillProcess( service );
-            console.log( this._Title( service ) + " has been stopped." );
+          if( !this._isStopped( service ) ){
+            this._killProcess( service );
+            console.log( this._title( service ) + " has been stopped." );
           }
           else{
-            if( fs.existsSync( this._PidLocation( service ) ) ){
-              fs.unlinkSync( this._PidLocation( service ) );
-              console.log( "Cleared stale pid for " + this._Title( service ) + "." );
+            if( fs.existsSync( this._pidLocation( service ) ) ){
+              fs.unlinkSync( this._pidLocation( service ) );
+              console.log( "Cleared stale pid for " + this._title( service ) + "." );
             }
             else{
-              console.log( this._Title( service ) + " is not running." );
+              console.log( this._title( service ) + " is not running." );
             }
             
           }
           break;
         case "start":
-          if( this._IsStopped( service ) ){
-            await this._RunCommand( service, this._GenerateArguments( service ), false, this.options.services.filter( x => x.name === service )[0].captureInput || false );
+          if( this._isStopped( service ) ){
+            await this._runCommand( service, this._generateArguments( service ), false, this.options.services.filter( x => x.name === service )[0].captureInput || false );
           }
           else{
-            console.log( this._Title( service ) + " is already running." );
+            console.log( this._title( service ) + " is already running." );
           }
           break;
         case "restart-debug":
-          if( !this._IsStopped( service ) ){
-            this._KillProcess( service );
-            console.log( this._Title( service ) + " stopped to restart for debug." );
+          if( !this._isStopped( service ) ){
+            this._killProcess( service );
+            console.log( this._title( service ) + " stopped to restart for debug." );
           }
         case "debug":
-          if( this._IsStopped( service ) ){
+          if( this._isStopped( service ) ){
             if( !this.options.services ){
-              this._ConfigureProcess( service );
+              this._configureProcess( service );
               this.options.execute( new Bootstrapper( service, this ));
             }
             else if( this.options.services.filter( x => x.name === service )[0].pushDebug ){
-              this._ConfigureProcess( service );
+              this._configureProcess( service );
               this.options.services.filter( x => x.name === service )[0].execute( new Bootstrapper( service, this ) );
             }
             else{
-              await this._RunCommand( service, this._GenerateArguments( service ), true, this.options.services.filter( x => x.name === service )[0].captureInput || false );
+              await this._runCommand( service, this._generateArguments( service ), true, this.options.services.filter( x => x.name === service )[0].captureInput || false );
             }
           }
           else{
-            console.log( this._Title( service ) + " is already running.\nRun 'stop', 'restart', or 'restart-debug'." );
+            console.log( this._title( service ) + " is already running.\nRun 'stop', 'restart', or 'restart-debug'." );
           }
           break;
       }
     }
   }
 
-  Caller( depth ) {
+  caller( depth ) {
     let pst, stack, file, frame;
 
     pst = Error.prepareStackTrace;
@@ -221,7 +223,7 @@ exports.Service = class Service{
     return file;
   }
 
-  _GenerateArguments( service ){
+  _generateArguments( service ){
     let args = [ this.execScript ];
     args = args.concat( this.options.forwardArgs || [] );
 
@@ -238,7 +240,7 @@ exports.Service = class Service{
     return args;
   }
 
-  _RunCommand( service, args, watch = false, passinput = false ){
+  _runCommand( service, args, watch = false, passinput = false ){
     return new Promise( ( resolve, reject ) => {
       const localEnv = { ...process.env };
       localEnv.NODE_ENV = this.cliOptions.target;
@@ -272,13 +274,13 @@ exports.Service = class Service{
         resolve();
       }
       else{
-        this._ValidatePath( path.resolve( path.dirname( this.StdOut( service ) ) ), "stdout log file" );
-        this._ValidatePath( path.resolve( path.dirname( this.StdErr( service ) ) ), "stderr log file" );
-        let out = fs.openSync( this.StdOut( service ), 'a');
-        let outRead = fs.createReadStream( this.StdOut( service ) );
-        let readStream = fs.createReadStream( this.StdOut( service ) );
-        let err = fs.openSync( this.StdErr( service ), 'a');
-        let errRead = fs.createReadStream( this.StdErr( service ) );
+        this._validatePath( path.resolve( path.dirname( this.stdOut( service ) ) ), "stdout log file" );
+        this._validatePath( path.resolve( path.dirname( this.stdErr( service ) ) ), "stderr log file" );
+        let out = fs.openSync( this.stdOut( service ), 'a');
+        let outRead = fs.createReadStream( this.stdOut( service ) );
+        let readStream = fs.createReadStream( this.stdOut( service ) );
+        let err = fs.openSync( this.stdErr( service ), 'a');
+        let errRead = fs.createReadStream( this.stdErr( service ) );
         let childSpawn = spawn( this.options.exec || "node", args, {
           detached: true,
           stdio: [ 'ignore', out, err ],
@@ -295,13 +297,13 @@ exports.Service = class Service{
     });
   }
 
-  _PidDetail( service ){
-    if( !fs.existsSync( this._PidLocation( service ) ) ){
+  _pidDetail( service ){
+    if( !fs.existsSync( this._pidLocation( service ) ) ){
       return "";
     }
     else{
       try{
-        let pidNumber = fs.readFileSync( this._PidLocation( service ) ).toString().trim();
+        let pidNumber = fs.readFileSync( this._pidLocation( service ) ).toString().trim();
         if( pidNumber.match( /^\d+$/) ){
           return execSync( "ps -p " + pidNumber + " -o command=" ).toString().trim();
         }
@@ -314,14 +316,18 @@ exports.Service = class Service{
     }
   }
 
-  _IsStopped( service ){
-    return !( ( fs.existsSync( this._PidLocation( service ) ) && this._PidDetail( service ) === this._Title( service ) ) );
+  _isStopped( service ){
+    return !( ( fs.existsSync( this._pidLocation( service ) ) && this._pidDetail( service ) === this._title( service ) ) );
   }
 
-  _CreateCliOptions( defaultCliOptions ){
+  _createCliOptions( defaultCliOptions ){
     if( this.options.services && this.options.services instanceof Array ){
       let valueTypes = this.options.services.map( x => "[underline]{" + x.name + "}" );
+      let groupTypes = this.options.services.filter( x => x.group ).map( x => "[underline]{" + x.group + "}" );
       defaultCliOptions.push( { name : "service", alias : 's', type : String, description : "Service to execute command on.", typeLabel : valueTypes.join("|") } );
+      if( groupTypes.length > 0 ){
+        defaultCliOptions.push( { name : "group", alias : 'g', type : String, description : "Service group to execute command on.", typeLabel : groupTypes.join("|") } );
+      }
     }
     let appCliOptions = this.options.cli || [];
     let appCliNames = appCliOptions.map( y => y.name );
@@ -330,50 +336,52 @@ exports.Service = class Service{
     this.cliOptions = commandLineArgs( this._appCliOptions );
   }
 
-  _Title( service ){
-    return this._ReplaceNaming( service, this.options.processName || "bootloader-%service%" );
+  _title( service ){
+    return this._replaceNaming( service, this.options.processName || "bootloader-%service%" );
   }
 
-  _PidLocation( service ){
-    return this._ReplaceNaming( service, this.options.pid || "run/process-%service%.pid" );
+  _pidLocation( service ){
+    return this._replaceNaming( service, this.options.pid || "run/process-%service%.pid" );
   }
 
-  StdErr( service ){
-    return this._ReplaceNaming( service, this.options.stderr || "logs/stderr-%service%.log" );
+  stdErr( service ){
+    return this._replaceNaming( service, this.options.stderr || "logs/stderr-%service%.log" );
   }
 
-  StdOut( service ){
-    return this._ReplaceNaming( service, this.options.stdout || "logs/stdout-%service%.log" );
+  stdOut( service ){
+    return this._replaceNaming( service, this.options.stdout || "logs/stdout-%service%.log" );
   }
 
-  _ConfigureProcess( service ){
-    process.title = this._Title( service );
-    this._ValidatePath( path.resolve( path.dirname( this._PidLocation( service ) ) ), "pid file" );
+  _configureProcess( service ){
+    process.title = this._title( service );
+    this._validatePath( path.resolve( path.dirname( this._pidLocation( service ) ) ), "pid file" );
     if( this.options.useLogging === undefined || this.options.useLogging === true ){
       let appendLogs = this.options.appendLogs || false;
       let startupMessage = this.options.startupMessage || "======= Start up " + ( new Date() ) + " =======\r\n";
       if( appendLogs ){
-        fs.appendFileSync( this.StdOut( service ), "\n" );
+        fs.appendFileSync( this.stdOut( service ), "\n" );
         console.log( startupMessage );
-        fs.appendFileSync( this.StdErr( service ), "\n" );
+        fs.appendFileSync( this.stdErr( service ), "\n" );
         console.error( startupMessage );
       }
       else{
-        fs.writeFileSync( this.StdOut( service ), "" );
+        fs.writeFileSync( this.stdOut( service ), "" );
         console.log( startupMessage );
-        fs.writeFileSync( this.StdErr( service ), "" );
+        fs.writeFileSync( this.stdErr( service ), "" );
         console.error( startupMessage );
       }
     }
   }
 
-  _ReplaceNaming( service, namedString ){
+  _replaceNaming( service, namedString ){
     namedString = namedString.replace( "%service%", service || "daemon" );
+    let serviceOptions = this.options.services.filter( x => x.name === service )[0] || {};
+    namedString = namedString.replace( "%group%", serviceOptions.group || "daemon-group" );
     this._appCliOptions.map( x => namedString = namedString.replace( "%" + x.name + "%", this.cliOptions[x.name] ));
     return namedString;
   }
 
-  _ValidatePath( dir, reason ){
+  _validatePath( dir, reason ){
     let validationPath = path.relative( process.cwd(), dir );
     if( validationPath !== "" ){
       let pathing = validationPath.split( "/" );

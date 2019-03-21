@@ -12,33 +12,56 @@ exports.Bootstrapper = class Bootstrapper{
     this.service = service;
     this.options = this.service.cliOptions;
     this._closers = [];
-    this._SetupPid();
-    this._LoadConfigFile();
+    this._setupPid();
+    this._loadConfigFile();
     if( this.options.hookProcessOptions !== false ){
-      this.SetupProcessEvents();
+      this.setupProcessEvents();
     }
   }
 
   /**
    * Clears the pid out of the file system.
    */
-  _ClearPid(){
+  _clearPid(){
     fs.unlinkSync( this._pidFile );
   }
 
-  OnClose( method ){
+  onclose( method ){
     if( method instanceof Function ){
       //The coffee is for closers!
       this._closers.push( method );
     }
   }
 
+  task( program, args = [], options = {}, onclose = null ){
+    if( !options.env ){
+      options.env = process.env;
+    }
+    let childSpawn = spawn( program, args, options );
+    childSpawn.stdout.on( 'data', ( chunk ) => {
+      console.log( chunk.toString().trim() );
+    } );
+    childSpawn.stderr.on( 'data', ( chunk ) => {
+      console.error( chunk.toString().trim() );
+    });
+    childSpawn.on( "exit", ( ) => {
+      console.log( `Task '${program} ${args.join(" ")}' CLOSED!` );
+      if( onclose !== null ){
+        onclose();
+      }
+    } );
+
+    this.onclose( ( signal ) => {
+      childSpawn.kill();
+    });
+  }
+
   /**
    * Sets up the process events, e.g. exit, SIGINT, and exceptions.
    */
-  SetupProcessEvents(){
+  setupProcessEvents(){
     process.on( "exit", ( signal ) => {
-      this._ClearPid();
+      this._clearPid();
       for( let i = 0; i < this._closers.length; i++ ){
         this._closers[i]( signal );
       }
@@ -64,8 +87,8 @@ exports.Bootstrapper = class Bootstrapper{
   /**
    * Creates the pid file and makes sure it can be manipulated if the application changes user.
    */
-  _SetupPid(){
-    this._pidFile = this.service._PidLocation( this._serviceName );
+  _setupPid(){
+    this._pidFile = this.service._pidLocation( this._serviceName );
     fs.writeFileSync( this._pidFile, process.pid );
     fs.chmodSync( this._pidFile, "0777");
   }
@@ -73,9 +96,9 @@ exports.Bootstrapper = class Bootstrapper{
   /**
    * Loads the config file set in the command line arguments.
    */
-  _LoadConfigFile(){
+  _loadConfigFile(){
     if( this.options.config ){
-      let configFile = this.service._ReplaceNaming( this._serviceName, this.options.config );
+      let configFile = this.service._replaceNaming( this._serviceName, this.options.config );
       if( fs.existsSync( configFile ) ){
         try{
           this.config = require( configFile );
