@@ -38,6 +38,7 @@ exports.Bootstrapper = class Bootstrapper{
     if( !options.env ){
       options.env = process.env;
     }
+    let killSignal = options.killSignal || null;
     let args = command.split( " " );
     command = args[0];
     args.splice( 0, 1 );
@@ -56,8 +57,10 @@ exports.Bootstrapper = class Bootstrapper{
     } );
 
     this.onclose( ( signal ) => {
-      childSpawn.kill();
+      childSpawn.kill( killSignal || signal );
     });
+
+    return childSpawn;
   }
 
   /**
@@ -73,7 +76,11 @@ exports.Bootstrapper = class Bootstrapper{
 
     //Process teardown.
     process.on('SIGINT', () => {
-      //console.log('Signal exit, closing.\n');
+      console.log('Signal exit, closing.\n');
+      for( let i = 0; i < this._closers.length; i++ ){
+        this._closers[i]( 'SIGINT' );
+      }
+      this._closers = [];
       process.exit();
     });
 
