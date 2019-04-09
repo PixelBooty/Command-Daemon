@@ -49,6 +49,8 @@ Service Options
 * captureInput : Passes process instance input to service, recommended this is only set for one service, and pushDebug is off.
 * execute : Method that executes to start the node service.
 * group : Name of the group that will be targeted with the command.
+* autoRestart : The process is watched by a parent process, and can be automatically restarted if this option is turned on.
+* parentExecute : If additional functionallity is to be performed on the parent process this execute function will be run in the parent process if the option exists.
 
 Basic Use
 =========

@@ -8,16 +8,23 @@ exports.Bootstrapper = class Bootstrapper{
   /**
    * Constructor for Bootstraper.
    */
-  constructor( serviceName, service ){
+  constructor( serviceName, service, bootstrapProcess = true ){
     this._serviceName = serviceName,
+    this._bootstrapProcess = bootstrapProcess;
     this.service = service;
     this.options = this.service.cliOptions;
     this._closers = [];
-    this._setupPid();
-    this._loadConfigFile();
-    if( this.options.hookProcessOptions !== false ){
-      this.setupProcessEvents();
+    if( this._bootstrapProcess ){
+      this._setupPid();
+      this._loadConfigFile();
     }
+    else{
+      this._loadConfigFile();
+      if( this.options.hookProcessOptions !== false ){
+        this.setupProcessEvents();
+      }
+    }
+    
   }
 
   /**
@@ -68,7 +75,6 @@ exports.Bootstrapper = class Bootstrapper{
    */
   setupProcessEvents(){
     process.on( "exit", ( signal ) => {
-      this._clearPid();
       for( let i = 0; i < this._closers.length; i++ ){
         this._closers[i]( signal );
       }
@@ -102,6 +108,9 @@ exports.Bootstrapper = class Bootstrapper{
     this._pidFile = this.service._pidLocation( this._serviceName );
     fs.writeFileSync( this._pidFile, process.pid );
     fs.chmodSync( this._pidFile, "0777");
+    process.on( "exit", ( signal ) => {
+      this._clearPid();
+    });
   }
 
   /**
@@ -120,7 +129,9 @@ exports.Bootstrapper = class Bootstrapper{
         }
       }
       else{
-        console.error( `Missing config file at ${configFile} using blank config.` )
+        if( this._bootstrapProcess ){
+          console.error( `Missing config file at ${configFile} using blank config.` )
+        }
       }
     }
     this.config = this.config || {};

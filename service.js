@@ -41,7 +41,7 @@ exports.Service = class Service{
         defaultValue : "start",
         defaultOption : true,
         description : "Command to run the service with. Default 'start'",
-        typeLabel : "[underline]{start}|[underline]{debug}|[underline]{restart-debug}|[underline]{stop}|[underline]{restart}|[underline]{status}|[underline]{manual}."
+        typeLabel : "[underline]{start}|[underline]{debug}|[underline]{restart-debug}|[underline]{stop}|[underline]{restart}|[underline]{status}|[underline]{manual}"
       }, {
         name : "killCode",
         alias : 'k',
@@ -67,6 +67,10 @@ exports.Service = class Service{
           .join( '|' )
       }, {
         name : "isBootStrapped",
+        type : Boolean,
+        defaultValue : false
+      }, {
+        name : "isHooked",
         type : Boolean,
         defaultValue : false
       }
@@ -121,10 +125,22 @@ exports.Service = class Service{
   }
 
   async _yieldProcess( service ){
-    if( this.cliOptions.isBootStrapped ){
+    if( this.cliOptions.isHooked ){
       this._configureProcess( service );
+      let bootstrapper = new Bootstrapper( service, this );
+      let proc = await this._runCommand( service, this._generateArguments( service, true ), true, this.options.services.filter( x => x.name === service )[0].captureInput || false, this.options.services.filter( x => x.name === service )[0].autoRestart );
+      if( this.options.services.filter( x => x.name === service )[0].parentExecute ){
+        this.options.services.filter( x => x.name === service )[0].parentExecute( bootstrapper );
+      }
+      process.on( "SIGINT", () => {
+        proc.kill( "SIGINT" );
+        process.exit();
+      })
+    }
+    else if( this.cliOptions.isBootStrapped ){
+      process.title = this._title( service ) + "-child";
       //console.log( "--YIELD PROCESS " + service + " FINISHED--" );
-      this.options.services.filter( x => x.name === service )[0].execute( new Bootstrapper( service, this ) );
+      this.options.services.filter( x => x.name === service )[0].execute( new Bootstrapper( service, this, false ) );
     }
     else{
       switch( this.cliOptions.command ){
@@ -145,8 +161,8 @@ exports.Service = class Service{
         case "manual":
           const getUsage = require('command-line-usage');
           let sections = this.options.usage || [];
-          sections.push( { header : "Options", optionList : this._appCliOptions.filter( option => option.name !== "isBootStrapped" ) } );
-          console.log( getUsage( sections.filter( x => x.name !== "isBootStrapped" ) ) );
+          sections.push( { header : "Options", optionList : this._appCliOptions.filter( option => option.name !== "isBootStrapped" && option.name !== "isHooked" ) } );
+          console.log( getUsage( sections ) );
           break;
         case "status":
           console.log( this._status( service ) );
@@ -223,13 +239,20 @@ exports.Service = class Service{
     return file;
   }
 
-  _generateArguments( service ){
+  _generateArguments( service, bootstraped = false ){
     let args = [ this.execScript ];
     args = args.concat( this.options.forwardArgs || [] );
 
     let cliOps = Object.assign( {}, this.cliOptions );
     cliOps.service = service;
-    cliOps.isBootStrapped = true;
+    if( bootstraped === false ){
+      cliOps.isHooked = true;
+    }
+    else{
+      delete cliOps.isHooked;
+      cliOps.isBootStrapped = true;
+    }
+    
     args = args.concat( this.options.forwardArgs || [] );
     for( let i = 0; i < this._appCliOptions.length; i++ ){
       if( cliOps[this._appCliOptions[i].name] ){
@@ -240,7 +263,7 @@ exports.Service = class Service{
     return args;
   }
 
-  _runCommand( service, args, watch = false, passinput = false ){
+  _runCommand( service, args, watch = false, passinput = false, autoRestart = false ){
     return new Promise( ( resolve, reject ) => {
       this._validatePath( path.resolve( path.dirname( this.stdOut( service ) ) ), "stdout log file" );
       this._validatePath( path.resolve( path.dirname( this.stdErr( service ) ) ), "stderr log file" );
@@ -272,9 +295,11 @@ exports.Service = class Service{
           console.error( chalk.red( chunk.toString().trim() ) );
         });
         childSpawn.on( "exit", ( ) => {
-          //finishedCallback();
+          if( autoRestart ){
+            this._runCommand( service, args, watch, passinput, autoRestart );
+          }
         } );
-        resolve();
+        resolve( childSpawn );
       }
       else{
         let out = fs.openSync( this.stdOut( service ), 'a');
@@ -324,7 +349,7 @@ exports.Service = class Service{
   _createCliOptions( defaultCliOptions ){
     if( this.options.services && this.options.services instanceof Array ){
       let valueTypes = this.options.services.map( x => "[underline]{" + x.name + "}" );
-      let groupTypes = this.options.services.filter( x => x.group ).map( x => "[underline]{" + x.group + "}" );
+      let groupTypes = [ ...new Set( this.options.services.filter( x => x.group ).map( x => x.group ) )].map( group => "[underline]{" + group + "}" );
       defaultCliOptions.push( { name : "service", alias : 's', type : String, description : "Service to execute command on.", typeLabel : valueTypes.join("|") } );
       if( groupTypes.length > 0 ){
         defaultCliOptions.push( { name : "group", alias : 'g', type : String, description : "Service group to execute command on.", typeLabel : groupTypes.join("|") } );
