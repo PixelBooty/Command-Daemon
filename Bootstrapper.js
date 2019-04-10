@@ -117,6 +117,9 @@ exports.Bootstrapper = class Bootstrapper{
    * Loads the config file set in the command line arguments.
    */
   _loadConfigFile(){
+    if( this.service.configFile ){
+      this.options.config = this.service.configFile;
+    }
     if( this.options.config ){
       let configFile = this.service._replaceNaming( this._serviceName, this.options.config );
       if( fs.existsSync( configFile ) ){

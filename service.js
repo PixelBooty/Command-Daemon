@@ -128,7 +128,7 @@ exports.Service = class Service{
     if( this.cliOptions.isHooked ){
       this._configureProcess( service );
       let bootstrapper = new Bootstrapper( service, this );
-      let proc = await this._runCommand( service, this._generateArguments( service, true ), true, this.options.services.filter( x => x.name === service )[0].captureInput || false, this.options.services.filter( x => x.name === service )[0].autoRestart );
+      let proc = await this._runCommand( service, true, true );
       if( this.options.services.filter( x => x.name === service )[0].parentExecute ){
         this.options.services.filter( x => x.name === service )[0].parentExecute( bootstrapper );
       }
@@ -156,7 +156,7 @@ exports.Service = class Service{
             console.log( "Couldn't stop process sending termination signal." );
             this._killProcess( service, "SIGTERM" );
           }
-          await this._runCommand( service, this._generateArguments( service ), false, this.options.services.filter( x => x.name === service )[0].captureInput || false );
+          await this._runCommand( service, false );
           break;
         case "manual":
           const getUsage = require('command-line-usage');
@@ -185,7 +185,7 @@ exports.Service = class Service{
           break;
         case "start":
           if( this._isStopped( service ) ){
-            await this._runCommand( service, this._generateArguments( service ), false, this.options.services.filter( x => x.name === service )[0].captureInput || false );
+            await this._runCommand( service, false );
           }
           else{
             console.log( this._title( service ) + " is already running." );
@@ -198,16 +198,12 @@ exports.Service = class Service{
           }
         case "debug":
           if( this._isStopped( service ) ){
-            if( !this.options.services ){
-              this._configureProcess( service );
-              this.options.execute( new Bootstrapper( service, this ));
-            }
-            else if( this.options.services.filter( x => x.name === service )[0].pushDebug ){
+            if( this.options.services.filter( x => x.name === service )[0].pushDebug ){
               this._configureProcess( service );
               this.options.services.filter( x => x.name === service )[0].execute( new Bootstrapper( service, this ) );
             }
             else{
-              await this._runCommand( service, this._generateArguments( service ), true, this.options.services.filter( x => x.name === service )[0].captureInput || false );
+              await this._runCommand( service, true );
             }
           }
           else{
@@ -239,7 +235,7 @@ exports.Service = class Service{
     return file;
   }
 
-  _generateArguments( service, bootstraped = false ){
+  _generateArguments( service, bootstraped ){
     let args = [ this.execScript ];
     args = args.concat( this.options.forwardArgs || [] );
 
@@ -263,10 +259,212 @@ exports.Service = class Service{
     return args;
   }
 
-  _runCommand( service, args, watch = false, passinput = false, autoRestart = false ){
+  _configureLoggers( service, logSize, logBreaks ){
+    let stdOut = [];
+    let stdErr = [];
+    let consoleOrg = {
+      log: console.log,
+      error: console.error,
+      info: console.info,
+      warn: console.warn
+    };
+
+    console.log = function(){
+      let args = [ ...arguments ].map( arg => arg.toString() );
+      stdOut.push( args.join( "\n" ) + "\n" );
+      consoleOrg.log.apply( this, arguments );
+    }
+
+    console.error = function(){
+      let args = [ ...arguments ].map( arg => arg.toString() );
+      stdErr.push( args.join( "\n" ) + "\n" );
+      consoleOrg.error.apply( this, arguments );
+    }
+
+    console.info = function(){
+      let args = [ ...arguments ].map( arg => arg.toString() );
+      stdOut.push( args.join( "\n" ) );
+      consoleOrg.info.apply( this, arguments );
+    }
+
+    console.warn = function(){
+      let args = [ ...arguments ].map( arg => arg.toString() );
+      stdErr.push( args.join( "\n" ) );
+      consoleOrg.warn.apply( this, arguments );
+    }
+
+    let outFile = this.stdOut( service );
+    let errFile = this.stdErr( service );
+
+    let cycle = async () => {
+      if( stdOut.length > 0 ){
+        let stdOutCopy = stdOut;
+        stdOut = [];
+        try{
+          await this._appendLog( outFile, stdOutCopy.join( "\n" ) );
+        }
+        catch( ex ){
+          //Load back in and wait for next log dump
+          console.error( "SYSTEM ERROR: unable to append logs", ex );
+          stdOut = [ ...stdOutCopy, ...stdOut ];
+        }
+        await this._breakLogFile( outFile, logSize, logBreaks );
+      }
+      if( stdErr.length > 0 ){
+        let stdErrCopy = stdErr;
+        stdErr = [];
+        try{
+          await this._appendLog( errFile, stdErrCopy.join( "\n" ) );
+        }
+        catch( ex ){
+          //Load back in and wait for next log dump
+          console.error( "SYSTEM ERROR: unable to append logs", ex );
+          stdErr = [ ...stdErrCopy, ...stdErr ];
+        }
+        await this._breakLogFile( errFile, logSize, logBreaks );
+      }
+      setTimeout( cycle, 1 );
+    };
+    cycle();
+  }
+
+  _createFile( logFile ){
     return new Promise( ( resolve, reject ) => {
-      this._validatePath( path.resolve( path.dirname( this.stdOut( service ) ) ), "stdout log file" );
-      this._validatePath( path.resolve( path.dirname( this.stdErr( service ) ) ), "stderr log file" );
+      fs.writeFile( logFile, "", (err) => {
+        if( err ){
+          reject( err );
+        }
+        else{
+          resolve();
+        }
+      });
+    })
+  }
+
+  _appendLog( logFile, content ){
+    return new Promise( ( resolve, reject ) => {
+      fs.appendFile( logFile, content, ( err ) => {
+        if( err ){
+          reject( err );
+        }
+        else{
+          resolve();
+        }
+      });
+    });
+  }
+
+  _statFile( fileName ){
+    return new Promise( ( resolve, reject ) => {
+      fs.stat( fileName, ( err, stat ) => {
+        if( err ){
+          reject( err );
+        }
+        else{
+          resolve( stat );
+        }
+      });
+    });
+  }
+
+  _exists( fileName ){
+    return new Promise( ( resolve ) => {
+      fs.access( fileName, fs.constants.F_OK | fs.constants.W_OK, ( err ) => {
+        if( err ){
+          resolve( false );
+        }
+        else{
+          resolve( true );
+        }
+      });
+    })
+  }
+
+  _rename( fileName, nextName ){
+    return new Promise( ( resolve, reject ) => {
+      fs.rename( fileName, nextName, (err) => {
+        if( err ){
+          reject( err );
+        }
+        else{
+          resolve();
+        }
+      });
+    } );
+  }
+
+  async _breakLogFile( logFile, logSize, logBreaks ){
+    if( logSize !== -1 && logBreaks > 0 ){
+      try{
+        let stat = await this._statFile( logFile );
+        let fileSizeMegs = stat.size / 1024 / 1024;
+        if( fileSizeMegs > logSize ){
+          for( let i = logBreaks - 1; i >= 0; i-- ){
+            if( i === 0 ){
+              try{
+                await this._rename( logFile, logFile + "." + ( i + 1 ) );
+                await this._createFile( logFile );
+              }
+              catch( ex ){
+                console.error( "SYSTEM ERROR: unable to move log file", logFile, ex );
+                break;
+              }
+            }
+            if( await this._exists( logFile + "." + i ) ){
+              try{
+                await this._rename( logFile + "." + i, logFile + "." + ( i + 1 ) );
+              }
+              catch( ex ){
+                console.error( "SYSTEM ERROR: unable to move log file", logFile, ex );
+                break;
+              }
+            }
+          }
+        }
+      }
+      catch( ex ){
+        console.error( "SYSTEM ERROR: unable to break up logs", ex );
+      }
+    }
+  }
+
+  _runCommand( service, watch = false, bootstrapped = false ){
+    let serviceObject = this.options.services.filter( x => x.name === service )[0];
+    let passinput = serviceObject.captureInput || false;
+    let autoRestart = false;
+    let logoutput = false;
+    let args = null;
+    if( bootstrapped ){
+      args = this._generateArguments( service, true );
+      autoRestart = serviceObject.autoRestart || autoRestart;
+      logoutput = true;
+    }
+    else{
+      args = this._generateArguments( service, false );
+    }
+    
+    return new Promise( ( resolve, reject ) => {
+      if( logoutput ){
+        if( this.options.useLogging === undefined || this.options.useLogging === true ){
+          this._validatePath( path.resolve( path.dirname( this.stdOut( service ) ) ), "stdout log file" );
+          this._validatePath( path.resolve( path.dirname( this.stdErr( service ) ) ), "stderr log file" );
+          let appendLogs = this.options.appendLogs || false;
+          let startupMessage = this.options.startupMessage || "======= Start up " + ( new Date() ) + " =======\r\n";
+          if( appendLogs ){
+            fs.appendFileSync( this.stdOut( service ), "\n" );
+            fs.appendFileSync( this.stdErr( service ), "\n" );
+          }
+          else{
+            fs.writeFileSync( this.stdOut( service ), "" );
+            fs.writeFileSync( this.stdErr( service ), "" );
+          }
+
+          this._configureLoggers( service, this.options.logSize || -1, this.options.logBreaks || 0 );
+
+          console.log( startupMessage );
+          console.error( startupMessage );
+        }
+      }
       
       const localEnv = { ...process.env };
       localEnv.NODE_ENV = this.cliOptions.target;
@@ -292,30 +490,37 @@ exports.Service = class Service{
           console.log( chunk.toString().trim() );
         } );
         childSpawn.stderr.on( 'data', ( chunk ) => {
-          console.error( chalk.red( chunk.toString().trim() ) );
+          if( !logoutput ){
+            console.error( chalk.red( chunk.toString().trim() ) );
+          }
+          else{
+            console.error( chunk.toString().trim() );
+          }
         });
         childSpawn.on( "exit", ( ) => {
           if( autoRestart ){
-            this._runCommand( service, args, watch, passinput, autoRestart );
+            this._runCommand( service, watch, bootstrapped );
           }
         } );
         resolve( childSpawn );
       }
       else{
-        let out = fs.openSync( this.stdOut( service ), 'a');
-        let outRead = fs.createReadStream( this.stdOut( service ) );
-        let readStream = fs.createReadStream( this.stdOut( service ) );
-        let err = fs.openSync( this.stdErr( service ), 'a');
-        let errRead = fs.createReadStream( this.stdErr( service ) );
+        if( fs.existsSync( this._pidLocation( service ) ) ){
+          fs.unlinkSync( this._pidLocation( service ) );
+        }
+        let processHook = () => {
+          if( fs.existsSync( this._pidLocation( service ) ) ){
+            resolve();
+          }
+          else{
+            setTimeout( processHook, 50 );
+          }
+        };
+        setTimeout( processHook, 50 );
         let childSpawn = spawn( this.options.exec || "node", args, {
           detached: true,
-          stdio: [ 'ignore', out, err ],
+          stdio: 'ignore',
           env: localEnv
-        } );
-
-        readStream.on( 'data', ( chunk ) => {
-          readStream.close();
-          resolve();
         } );
 
         childSpawn.unref();
@@ -381,22 +586,6 @@ exports.Service = class Service{
   _configureProcess( service ){
     process.title = this._title( service );
     this._validatePath( path.resolve( path.dirname( this._pidLocation( service ) ) ), "pid file" );
-    if( this.options.useLogging === undefined || this.options.useLogging === true ){
-      let appendLogs = this.options.appendLogs || false;
-      let startupMessage = this.options.startupMessage || "======= Start up " + ( new Date() ) + " =======\r\n";
-      if( appendLogs ){
-        fs.appendFileSync( this.stdOut( service ), "\n" );
-        console.log( startupMessage );
-        fs.appendFileSync( this.stdErr( service ), "\n" );
-        console.error( startupMessage );
-      }
-      else{
-        fs.writeFileSync( this.stdOut( service ), "" );
-        console.log( startupMessage );
-        fs.writeFileSync( this.stdErr( service ), "" );
-        console.error( startupMessage );
-      }
-    }
   }
 
   _replaceNaming( service, namedString ){

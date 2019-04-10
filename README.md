@@ -35,9 +35,10 @@ Config Options
 * startupMessage : String default '======= Start up {date} =======', message to start basic logging.
 * stdout : String default 'logs/stdout-%service%.log', location of stdout for basic logging.
 * stderr : String default 'logs/stderr-%service%.log', location of stderr for basic logging.
+* logSize : Number in megabytes of which after the log will break off.
+* logBreaks : Number of times a log can break off before a break is removed.
 * services : Array of sevices optional, see service options.
 * cli : Array of cli options see 'npm command-line-args' for details on cli objects.
-* execute : Function( BootStrapper ), method if no services are used to execute service.
 * target: Default target to be used.
 * environments: Array of types of environments to allow to be targeted. Defaults to and array of "production, test, and development".
 
@@ -51,6 +52,7 @@ Service Options
 * group : Name of the group that will be targeted with the command.
 * autoRestart : The process is watched by a parent process, and can be automatically restarted if this option is turned on.
 * parentExecute : If additional functionallity is to be performed on the parent process this execute function will be run in the parent process if the option exists.
+* configFile : Override of the location of the config file for a serivce in the service tree.
 
 Basic Use
 =========
