@@ -156,7 +156,9 @@ exports.Service = class Service{
             console.log( "Couldn't stop process sending termination signal." );
             this._killProcess( service, "SIGTERM" );
           }
+          console.log( this._title( service ) + " has been stopped." );
           await this._runCommand( service, false );
+          console.log( this._title( service ) + " has started." );
           break;
         case "manual":
           const getUsage = require('command-line-usage');
@@ -186,6 +188,7 @@ exports.Service = class Service{
         case "start":
           if( this._isStopped( service ) ){
             await this._runCommand( service, false );
+            console.log( this._title( service ) + " has started." );
           }
           else{
             console.log( this._title( service ) + " is already running." );
