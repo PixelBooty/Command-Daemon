@@ -81,20 +81,35 @@ exports.Service = class Service{
 
   _killProcess( service, overrideSignal = null ){
     overrideSignal = overrideSignal || this.cliOptions.killCode;
-    let pid = fs.readFileSync( this._pidLocation( service ) ).toString().trim();
-    if( pid.match( /^\d+$/ ) && this._pidDetail( service ) === this._title( service ) ){
-      process.kill( pid, overrideSignal );
+    let pids = [];
+    if( fs.existsSync( this._pidLocation( service ) ) ){
+      pids = [ fs.readFileSync( this._pidLocation( service ) ).toString().trim() ];
     }
-    if( overrideSignal === "SIGTERM" || overrideSignal === "SIGKILL" ){
-      try{
-        fs.unlinkSync( this._pidLocation( service ) );
-      }
-      catch( ex ){
-        //Throw away kill process file errors//
+    else{
+      //The pid file has been removed, now we kill um all...
+      if( this._hasZombies( service ) ){
+        let processTitle = this._title( service );
+        let zombieResult = execSync( `ps aux | grep [${processTitle[0]}]${processTitle.substring( 1 )}` ).toString().trim();
+        pids = zombieResult.split( "\n" ).map( psAuxLine => {
+          let foundResult = psAuxLine.match( /^[A-z\d\_\-]+\s+(\d+)/ );
+          return foundResult[1] || null;
+        }).filter( pidResult => pidResult !== null );
       }
     }
+    pids.forEach( pid => {
+      if( pid.match( /^\d+$/ ) && ( this._pidDetail( service ) === this._title( service ) || this._pidDetail( service ) === "" ) ){
+        process.kill( pid, overrideSignal );
+      }
+      if( overrideSignal === "SIGTERM" || overrideSignal === "SIGKILL" ){
+        try{
+          fs.unlinkSync( this._pidLocation( service ) );
+        }
+        catch( ex ){
+          //Throw away kill process file errors//
+        }
+      }
+    });
   }
-
   async _yieldProcesses(){
     if( ( !this.options.group && !this.options.services ) || this.cliOptions.command === "manual" ){
       this._yieldProcess();
@@ -115,13 +130,51 @@ exports.Service = class Service{
   }
 
   _status( service ){
-    return this._title( service ) + " is " + ( ( this._isStopped( service ) ) ? "stopped" : "running" );
+    return this._title( service ) + " is " + ( ( this._isStopped( service ) ) ? "stopped" + ( this._hasZombies( service ) ? " with zombies" : "" ) : "running" );
   }
 
   _timeout( timer ){
     return new Promise( ( resolve, reject ) => {
       setTimeout( () => resolve(), timer );
     });
+  }
+
+  async _fullStop( service ){
+
+    if( this._anyRunning( service ) ){
+
+      let maxKillTimer = 3000;
+      let currentTimer = 0;
+      this._killProcess( service );
+      while( currentTimer < maxKillTimer && !this._isStopped( service ) ){
+        await this._timeout( 10 );
+        currentTimer += 10;
+      }
+      if( !this._isStopped( service ) ){
+        console.log( "Couldn't stop process sending termination signal." );
+        this._killProcess( service, "SIGTERM" );
+      }
+
+      if( !this._anyRunning( service ) ){
+        console.log( this._title( service ) + " has been stopped." );
+      }
+      else{
+        if( fs.existsSync( this._pidLocation( service ) ) ){
+          fs.unlinkSync( this._pidLocation( service ) );
+          console.log( "Cleared stale pid for " + this._title( service ) + "." );
+        }
+        this._killProcess( service, "SIGTERM" );
+        console.log( this._title( service ) + " has been stopped forcefully." );
+      }
+      
+    }
+    else{
+      console.log( this._title( service ) + " is not running." );
+    }
+  }
+
+  _anyRunning( service ){
+    return !this._isStopped( service ) || this._hasZombies( service );
   }
 
   async _yieldProcess( service ){
@@ -145,18 +198,7 @@ exports.Service = class Service{
     else{
       switch( this.cliOptions.command ){
         case "restart":
-          let maxKillTimer = 3000;
-          let currentTimer = 0;
-          this._killProcess( service );
-          while( currentTimer < maxKillTimer && !this._isStopped( service ) ){
-            await this._timeout( 10 );
-            currentTimer += 10;
-          }
-          if( !this._isStopped( service ) ){
-            console.log( "Couldn't stop process sending termination signal." );
-            this._killProcess( service, "SIGTERM" );
-          }
-          console.log( this._title( service ) + " has been stopped." );
+          await this._fullStop( service );
           await this._runCommand( service, false );
           console.log( this._title( service ) + " has started." );
           break;
@@ -170,23 +212,10 @@ exports.Service = class Service{
           console.log( this._status( service ) );
           break;
         case "stop":
-          if( !this._isStopped( service ) ){
-            this._killProcess( service );
-            console.log( this._title( service ) + " has been stopped." );
-          }
-          else{
-            if( fs.existsSync( this._pidLocation( service ) ) ){
-              fs.unlinkSync( this._pidLocation( service ) );
-              console.log( "Cleared stale pid for " + this._title( service ) + "." );
-            }
-            else{
-              console.log( this._title( service ) + " is not running." );
-            }
-            
-          }
+          await this._fullStop( service );
           break;
         case "start":
-          if( this._isStopped( service ) ){
+          if( !this._anyRunning( service ) ){
             await this._runCommand( service, false );
             console.log( this._title( service ) + " has started." );
           }
@@ -195,12 +224,9 @@ exports.Service = class Service{
           }
           break;
         case "restart-debug":
-          if( !this._isStopped( service ) ){
-            this._killProcess( service );
-            console.log( this._title( service ) + " stopped to restart for debug." );
-          }
+          this._fullStop( service );
         case "debug":
-          if( this._isStopped( service ) ){
+          if( !this._anyRunning( service ) ){
             if( this.options.services.filter( x => x.name === service )[0].pushDebug ){
               this._configureProcess( service );
               this.options.services.filter( x => x.name === service )[0].execute( new Bootstrapper( service, this ) );
@@ -548,6 +574,19 @@ exports.Service = class Service{
 
       return "";
     }
+  }
+
+  _hasZombies( service ){
+    let processTitle = this._title( service );
+    let hasZombies = false
+    try{
+      hasZombies = execSync( `ps aux | grep [${processTitle[0]}]${processTitle.substring( 1 )}` ).toString().trim() != "";
+    }
+    catch( ex ){
+      //Grep found nothing//
+    }
+
+    return hasZombies;
   }
 
   _isStopped( service ){
