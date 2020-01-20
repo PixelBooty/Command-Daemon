@@ -289,6 +289,12 @@ exports.Service = class Service{
   }
 
   _configureLoggers( service, logSize, logBreaks ){
+    if( !console.daemonConfigured ){
+      console.daemonConfigured = true;
+    }
+    else{
+      return;//already configured in this process.
+    }
     let stdOut = [];
     let stdErr = [];
     let consoleOrg = {
@@ -478,7 +484,7 @@ exports.Service = class Service{
           this._validatePath( path.resolve( path.dirname( this.stdOut( service ) ) ), "stdout log file" );
           this._validatePath( path.resolve( path.dirname( this.stdErr( service ) ) ), "stderr log file" );
           let appendLogs = this.options.appendLogs || false;
-          let startupMessage = this.options.startupMessage || "======= Start up " + ( new Date() ) + " =======\r\n";
+          let startupMessage = this.options.startupMessage === undefined ? "======= Start up " + ( new Date() ) + " =======\r\n" : this.options.startupMessage;
           if( appendLogs ){
             fs.appendFileSync( this.stdOut( service ), "\n" );
             fs.appendFileSync( this.stdErr( service ), "\n" );
@@ -490,8 +496,10 @@ exports.Service = class Service{
 
           this._configureLoggers( service, this.options.logSize || -1, this.options.logBreaks || 0 );
 
-          console.log( startupMessage );
-          console.error( startupMessage );
+          if( startupMessage ){
+            console.log( startupMessage );
+            console.error( startupMessage );
+          }
         }
       }
       
