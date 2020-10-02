@@ -106,7 +106,7 @@ exports.Bootstrapper = class Bootstrapper{
    */
   _setupPid(){
     this._pidFile = this.service._pidLocation( this._serviceName );
-    fs.writeFileSync( this._pidFile, process.pid );
+    fs.writeFileSync( this._pidFile, process.pid.toString() );
     fs.chmodSync( this._pidFile, "0777");
     process.on( "exit", ( signal ) => {
       this._clearPid();
