@@ -1,7 +1,7 @@
 {
   "name": "command-daemon",
   "description": "Daemon with command line arguments for execution.",
-  "url": "https://github.com/AdaptivElite/Command-Daemon",
+  "url": "https://github.com/PixelBooty/Command-Daemon",
   "keywords": [
     "Daemon",
     "Command Line",
@@ -12,11 +12,11 @@
     "cli",
     "spawn"
   ],
-  "author": "Steven Adams <steven@adaptivelite.com>",
-  "repository": "git://github.com/AdaptivElite/Command-Daemon.git",
+  "author": "Steven Adams <steven@pixelbooty.com>",
+  "repository": "git://github.com/PixelBooty/Command-Daemon.git",
   "main": "./index.js",
   "license": "GPL-3.0",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "dependencies": {
     "4": "0.0.0",
     "chalk": "^2.4.2",
