@@ -92,7 +92,7 @@ exports.Service = class Service{
         let zombieResult = execSync( `ps aux | grep [${processTitle[0]}]${processTitle.substring( 1 )}` ).toString().trim();
         pids = zombieResult.split( "\n" ).map( psAuxLine => {
           let foundResult = psAuxLine.match( /^[A-z\d\_\-]+\s+(\d+)/ );
-          return foundResult[1] || null;
+          return ( foundResult || [] )[1] || null;
         }).filter( pidResult => pidResult !== null );
       }
     }
