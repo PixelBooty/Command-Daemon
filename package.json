@@ -16,7 +16,7 @@
   "repository": "git://github.com/PixelBooty/Command-Daemon.git",
   "main": "./index.js",
   "license": "GPL-3.0",
-  "version": "1.0.11",
+  "version": "2.0.1",
   "dependencies": {
     "4": "0.0.0",
     "chalk": "^2.4.2",

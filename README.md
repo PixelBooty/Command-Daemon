@@ -37,7 +37,7 @@ Config Options
 * stderr : String default 'logs/stderr-%service%.log', location of stderr for basic logging.
 * logSize : Number in megabytes of which after the log will break off.
 * logBreaks : Number of times a log can break off before a break is removed.
-* services : Array of sevices optional, see service options.
+* services : Array of sevices, see service options.
 * cli : Array of cli options see 'npm command-line-args' for details on cli objects.
 * target: Default target to be used.
 * environments: Array of types of environments to allow to be targeted. Defaults to and array of "production, test, and development".

@@ -81,34 +81,27 @@ exports.Service = class Service{
 
   _killProcess( service, overrideSignal = null ){
     overrideSignal = overrideSignal || this.cliOptions.killCode;
-    let pids = [];
+    let pid = null;
     if( fs.existsSync( this._pidLocation( service ) ) ){
-      pids = [ fs.readFileSync( this._pidLocation( service ) ).toString().trim() ];
+      pid = fs.readFileSync( this._pidLocation( service ) ).toString().trim();
     }
     else{
       //The pid file has been removed, now we kill um all...
-      if( this._hasZombies( service ) ){
-        let processTitle = this._title( service );
-        let zombieResult = execSync( `ps aux | grep [${processTitle[0]}]${processTitle.substring( 1 )}` ).toString().trim();
-        pids = zombieResult.split( "\n" ).map( psAuxLine => {
-          let foundResult = psAuxLine.match( /^[A-z\d\_\-]+\s+(\d+)/ );
-          return ( foundResult || [] )[1] || null;
-        }).filter( pidResult => pidResult !== null );
+      if( this._hasPid( service ) ){
+        pid = this._getPid( this._title( service ) );
       }
     }
-    pids.forEach( pid => {
-      if( pid.match( /^\d+$/ ) && ( this._pidDetail( service ) === this._title( service ) || this._pidDetail( service ) === "" ) ){
-        process.kill( pid, overrideSignal );
+    if( pid !== null && pid.match( /^\d+$/) && ( this._pidDetail( service ) === this._title( service ) || this._pidDetail( service ) === "" ) ){
+      process.kill( pid, overrideSignal );
+    }
+    if( overrideSignal === "SIGTERM" || overrideSignal === "SIGKILL" ){
+      try{
+        fs.unlinkSync( this._pidLocation( service ) );
       }
-      if( overrideSignal === "SIGTERM" || overrideSignal === "SIGKILL" ){
-        try{
-          fs.unlinkSync( this._pidLocation( service ) );
-        }
-        catch( ex ){
-          //Throw away kill process file errors//
-        }
+      catch( ex ){
+        //Throw away kill process file errors//
       }
-    });
+    }
   }
   async _yieldProcesses(){
     if( ( !this.options.group && !this.options.services ) || this.cliOptions.command === "manual" ){
@@ -130,7 +123,7 @@ exports.Service = class Service{
   }
 
   _status( service ){
-    return this._title( service ) + " is " + ( ( this._isStopped( service ) ) ? "stopped" + ( this._hasZombies( service ) ? " with zombies" : "" ) : "running" );
+    return this._title( service ) + " is " + ( ( this._isStopped( service ) ) ? "stopped" + ( this._hasPid( service ) ? " with zombies" : "" ) : "running" );
   }
 
   _timeout( timer ){
@@ -174,7 +167,7 @@ exports.Service = class Service{
   }
 
   _anyRunning( service ){
-    return !this._isStopped( service ) || this._hasZombies( service );
+    return !this._isStopped( service ) || this._hasPid( service );
   }
 
   async _yieldProcess( service ){
@@ -570,31 +563,49 @@ exports.Service = class Service{
       return "";
     }
     else{
-      try{
-        let pidNumber = fs.readFileSync( this._pidLocation( service ) ).toString().trim();
-        if( pidNumber.match( /^\d+$/) ){
-          return execSync( "ps -p " + pidNumber + " -o command=" ).toString().trim();
-        }
-      }
-      catch( ex ){
-        return "";
+      let pidNumber = fs.readFileSync( this._pidLocation( service ) ).toString().trim();
+      if( pidNumber.match( /^\d+$/) ){
+        return this._getPidName( pidNumber );
       }
 
       return "";
     }
   }
 
-  _hasZombies( service ){
-    let processTitle = this._title( service );
-    let hasZombies = false
-    try{
-      hasZombies = execSync( `ps aux | grep [${processTitle[0]}]${processTitle.substring( 1 )}` ).toString().trim() != "";
+  _getProcessList(){
+    const processList = [];
+    if( process.platform === "win32" ){
+      execSync( `tasklist` ).toString().replace( /\r/g, ).split("\n").forEach( processItemString => {
+        const processDetails = processItemString.replace( / +/g, " " ).split( " " );
+        processList.push( {
+          name: processDetails[0],
+          pid : processDetails[1]
+        } );
+      } );
     }
-    catch( ex ){
-      //Grep found nothing//
+    else{
+      execSync( `ps aux` ).toString().split("\n").forEach( processItemString => {
+        const processDetails = processItemString.replace( / +/g, " " ).split( " " );
+        processList.push( {
+          name: processDetails.slice( 10 ).join( " " ),
+          pid : processDetails[1]
+        } );
+      } );
     }
 
-    return hasZombies;
+    return processList;
+  }
+
+  _getPid( processName ){
+    return ( this._getProcessList().filter( processDetail => processDetail.name === processName )[0] || {} ).pid || null;
+  }
+
+  _getPidName( pid ){
+    return ( this._getProcessList().filter( processDetail => processDetail.pid === pid )[0] || {} ).name || null;
+  }
+  
+  _hasPid( service ){
+    return this._getPid( this._title( service ) ) !== null;
   }
 
   _isStopped( service ){

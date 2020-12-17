@@ -8,11 +8,12 @@ exports.Bootstrapper = class Bootstrapper{
   /**
    * Constructor for Bootstraper.
    */
-  constructor( serviceName, service, bootstrapProcess = true ){
+  constructor( serviceName, server, bootstrapProcess = true ){
     this._serviceName = serviceName,
     this._bootstrapProcess = bootstrapProcess;
-    this.service = service;
-    this.options = this.service.cliOptions;
+    this.server = server;
+    this.service = this.server.options.services.filter( service => service.name === serviceName )[0];
+    this.options = this.server.cliOptions;
     this._closers = [];
     if( this._bootstrapProcess ){
       this._setupPid();
@@ -105,7 +106,7 @@ exports.Bootstrapper = class Bootstrapper{
    * Creates the pid file and makes sure it can be manipulated if the application changes user.
    */
   _setupPid(){
-    this._pidFile = this.service._pidLocation( this._serviceName );
+    this._pidFile = this.server._pidLocation( this._serviceName );
     fs.writeFileSync( this._pidFile, process.pid.toString() );
     fs.chmodSync( this._pidFile, "0777");
     process.on( "exit", ( signal ) => {
@@ -121,10 +122,10 @@ exports.Bootstrapper = class Bootstrapper{
       this.options.config = this.service.configFile;
     }
     if( this.options.config ){
-      let configFile = this.service._replaceNaming( this._serviceName, this.options.config );
+      let configFile = this.server._replaceNaming( this._serviceName, this.options.config );
       if( fs.existsSync( configFile ) ){
         try{
-          this.config = require( configFile );
+          this.config = require( process.cwd() + "/" + configFile );
           this.config.fileName = configFile;
         }
         catch( ex ){
@@ -139,7 +140,7 @@ exports.Bootstrapper = class Bootstrapper{
     }
     this.config = this.config || {};
     if( this.config.debug === undefined ){
-      this.config.debug = ( this.service.cliOptions.command === "debug" || this.service.cliOptions.command === "restart-debug" );
+      this.config.debug = ( this.server.cliOptions.command === "debug" || this.server.cliOptions.command === "restart-debug" );
     }
   }
 }
